@@ -36,3 +36,22 @@ build/
 
 ### Mac OS ###
 .DS_Store
+
+# SuperMap local/private files
+*.lic
+*.lic*
+*.lic12
+*.v2c
+demo-data/*
+!demo-data/README.md
+
+# local SDK / generated
+*.dll
+*.so
+*.dylib
+*.jar.lastUpdated
+*.pom.lastUpdated
+
+# build
+target/
+.idea/
