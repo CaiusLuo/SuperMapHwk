@@ -10,6 +10,7 @@ import com.supermap.data.Datasources;
 import com.supermap.data.EncodeType;
 import com.supermap.data.EngineType;
 import com.supermap.data.FieldInfos;
+import com.supermap.data.Geometry;
 import com.supermap.data.QueryParameter;
 import com.supermap.data.Recordset;
 import com.supermap.data.SpatialQueryMode;
@@ -654,10 +655,10 @@ public class HwkMainFrame extends JFrame {
             return;
         }
 
-        Recordset selectedRecordset = selectedRecordsetFromMap();
-        if (selectedRecordset == null) {
+        Geometry selectedGeometry = selectedGeometryFromMap();
+        if (selectedGeometry == null) {
             JOptionPane.showMessageDialog(this, "请先在地图上选择一个要素作为空间查询对象。");
-            log("空间查询取消：地图上没有已选择的要素。");
+            log("空间查询取消：地图上没有可用的选中要素几何。");
             return;
         }
 
@@ -666,13 +667,13 @@ public class HwkMainFrame extends JFrame {
 
         int answer = JOptionPane.showConfirmDialog(this, datasetBox, "选择空间查询目标数据集", JOptionPane.OK_CANCEL_OPTION);
         if (answer != JOptionPane.OK_OPTION) {
-            selectedRecordset.dispose();
+            selectedGeometry.dispose();
             return;
         }
 
         DatasetItem item = (DatasetItem) datasetBox.getSelectedItem();
         if (item == null) {
-            selectedRecordset.dispose();
+            selectedGeometry.dispose();
             return;
         }
 
@@ -680,7 +681,7 @@ public class HwkMainFrame extends JFrame {
         try {
             parameter.setCursorType(CursorType.STATIC);
             parameter.setHasGeometry(false);
-            parameter.setSpatialQueryObject(selectedRecordset);
+            parameter.setSpatialQueryObject(selectedGeometry);
             parameter.setSpatialQueryMode(SpatialQueryMode.INTERSECT);
 
             Recordset recordset = item.dataset.query(parameter);
@@ -690,7 +691,7 @@ public class HwkMainFrame extends JFrame {
             log("空间查询失败：" + ex.getMessage());
         } finally {
             parameter.dispose();
-            selectedRecordset.dispose();
+            selectedGeometry.dispose();
         }
     }
 
@@ -780,7 +781,7 @@ public class HwkMainFrame extends JFrame {
         }
     }
 
-    private Recordset selectedRecordsetFromMap() {
+    private Geometry selectedGeometryFromMap() {
         try {
             Selection[] selections = mapControl.getMap().findSelection(true);
             if (selections == null) {
@@ -789,12 +790,22 @@ public class HwkMainFrame extends JFrame {
 
             for (Selection selection : selections) {
                 if (selection != null && selection.getCount() > 0) {
-                    Recordset recordset = selection.toRecordset();
-                    if (recordset != null && !recordset.isEmpty()) {
-                        return recordset;
-                    }
-                    if (recordset != null) {
-                        recordset.dispose();
+                    Recordset recordset = null;
+                    try {
+                        recordset = selection.toRecordset();
+                        if (recordset != null && !recordset.isEmpty() && recordset.moveFirst() && !recordset.isEOF()) {
+                            Geometry geometry = recordset.getGeometry();
+                            if (geometry != null && !geometry.isEmpty()) {
+                                return geometry;
+                            }
+                            if (geometry != null) {
+                                geometry.dispose();
+                            }
+                        }
+                    } finally {
+                        if (recordset != null) {
+                            recordset.dispose();
+                        }
                     }
                 }
             }
