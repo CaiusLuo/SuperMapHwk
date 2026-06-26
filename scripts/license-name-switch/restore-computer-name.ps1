@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$BackupFile = "$PSScriptRoot\original-computer-name.txt",
 
     [switch]$NoRestart
@@ -39,7 +39,8 @@ Write-Host "电脑名已恢复，需要重启后生效。" -ForegroundColor Yell
 
 if ($NoRestart) {
     Write-Host "你传入了 -NoRestart，请稍后手动重启。"
-} else {
+}
+else {
     Write-Host "5 秒后自动重启..."
     Start-Sleep -Seconds 5
     Restart-Computer -Force

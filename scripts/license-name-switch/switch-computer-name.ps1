@@ -1,4 +1,4 @@
-param(
+﻿param(
     [Parameter(Mandatory = $true)]
     [string]$TargetName,
 
@@ -32,7 +32,8 @@ if ($TargetName.Length -gt 15) {
 if (!(Test-Path $BackupFile)) {
     Set-Content -Path $BackupFile -Value $currentName -Encoding UTF8
     Write-Host "已备份原电脑名到: $BackupFile"
-} else {
+}
+else {
     Write-Host "检测到已存在备份文件: $BackupFile"
     Write-Host "不会覆盖原备份。"
 }
@@ -50,7 +51,8 @@ Write-Host "电脑名已修改，需要重启后生效。" -ForegroundColor Yell
 
 if ($NoRestart) {
     Write-Host "你传入了 -NoRestart，请稍后手动重启。"
-} else {
+}
+else {
     Write-Host "5 秒后自动重启..."
     Start-Sleep -Seconds 5
     Restart-Computer -Force
