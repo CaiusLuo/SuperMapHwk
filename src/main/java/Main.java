@@ -1,4 +1,7 @@
 import com.supermap.data.Workspace;
+import ui.HwkMainFrame;
+
+import javax.swing.*;
 
 /**
  * @author Caius
@@ -7,7 +10,9 @@ import com.supermap.data.Workspace;
  */
 public class Main {
     public static void main(String[] args) {
-        Workspace workspace = new Workspace();
-         System.out.println("SuperMap Workspace 创建成功：" + workspace);
+        SwingUtilities.invokeLater(() -> {
+            HwkMainFrame frame = new HwkMainFrame();
+            frame.setVisible(true);
+        });
     }
 }
