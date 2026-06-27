@@ -496,7 +496,7 @@ public class HwkMainFrame extends JFrame {
     private void deleteSelectedDataset() {
         Dataset dataset = selectedDataset();
         if (dataset == null) {
-            log("请先在左侧选择一个数据集。");
+            log("请先在左侧数据源 / 数据集树中选择一个具体数据集。");
             return;
         }
 
@@ -513,7 +513,15 @@ public class HwkMainFrame extends JFrame {
         String name = dataset.getName();
         Datasource datasource = dataset.getDatasource();
         try {
-            mapControl.getMap().getLayers().removeByDataset(dataset);
+            removeLayersForDataset(dataset);
+            mapControl.getMap().refresh();
+            refreshLayerList();
+
+            if (isDatasetUsedByLayer(dataset)) {
+                log("数据集仍被地图图层引用，无法删除，请先移除相关图层。");
+                return;
+            }
+
             boolean deleted = datasource.getDatasets().delete(name);
             refreshTree();
             refreshLayerList();
@@ -1016,6 +1024,35 @@ public class HwkMainFrame extends JFrame {
         return layerList.getSelectedValue();
     }
 
+    private void removeLayersForDataset(Dataset dataset) {
+        Layers layers = mapControl.getMap().getLayers();
+        for (int i = layers.getCount() - 1; i >= 0; i--) {
+            Layer layer = layers.get(i);
+            if (isSameDataset(layer.getDataset(), dataset)) {
+                layers.remove(i);
+            }
+        }
+    }
+
+    private boolean isDatasetUsedByLayer(Dataset dataset) {
+        Layers layers = mapControl.getMap().getLayers();
+        for (int i = 0; i < layers.getCount(); i++) {
+            if (isSameDataset(layers.get(i).getDataset(), dataset)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isSameDataset(Dataset left, Dataset right) {
+        if (left == null || right == null) {
+            return false;
+        }
+
+        return left.getName().equals(right.getName())
+                && sameAlias(datasourceAlias(left.getDatasource()), datasourceAlias(right.getDatasource()));
+    }
+
     private void removeLayersForDatasource(Datasource datasource) {
         Datasets datasets = datasource.getDatasets();
         for (int i = 0; i < datasets.getCount(); i++) {
@@ -1032,7 +1069,8 @@ public class HwkMainFrame extends JFrame {
     }
 
     private void logException(String prefix, Exception ex) {
-        log(prefix + "：" + ex.getMessage());
+        String message = ex.getMessage();
+        log(prefix + "：" + (message == null ? ex.getClass().getName() : message));
         ex.printStackTrace();
     }
 
