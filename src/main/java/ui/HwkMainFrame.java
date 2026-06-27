@@ -64,6 +64,7 @@ import java.awt.event.WindowEvent;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Vector;
 
 /**
@@ -346,7 +347,7 @@ public class HwkMainFrame extends JFrame {
 
             mapControl.getMap().viewEntire();
             refreshMap(false);
-            refreshLayerList();
+            refreshTree();
             log("已打开地图：" + mapName);
         } catch (Exception ex) {
             logException("打开地图异常", ex);
@@ -365,6 +366,12 @@ public class HwkMainFrame extends JFrame {
         File file = chooser.getSelectedFile();
         String path = file.getAbsolutePath();
         try {
+            if (isDatasourceAlreadyLoaded(path)) {
+                refreshTree();
+                log("数据源已被当前地图引用，无需重复打开。");
+                return;
+            }
+
             DatasourceConnectionInfo info = new DatasourceConnectionInfo();
             info.setServer(path);
             info.setEngineType(resolveDatasourceEngine(path));
@@ -395,22 +402,15 @@ public class HwkMainFrame extends JFrame {
     }
 
     private String availableDatasourceAlias(File file) {
-        String name = file.getName();
-        int dot = name.lastIndexOf('.');
-        String base = dot > 0 ? name.substring(0, dot) : name;
-        base = base.replace(' ', '_').replace('-', '_');
-        if (base.trim().isEmpty()) {
-            base = "datasource";
-        }
+        String base = datasourceBaseAlias(file);
 
-        Datasources datasources = workspace.getDatasources();
-        if (!datasources.contains(base)) {
+        if (!containsDatasourceAlias(base)) {
             return base;
         }
 
         for (int i = 1; ; i++) {
             String alias = base + "_" + i;
-            if (!datasources.contains(alias)) {
+            if (!containsDatasourceAlias(alias)) {
                 return alias;
             }
         }
@@ -696,10 +696,11 @@ public class HwkMainFrame extends JFrame {
     }
 
     private void showStatistics() {
-        int datasourceCount = workspace.getDatasources().getCount();
+        List<Datasource> datasources = currentDatasources();
+        int datasourceCount = datasources.size();
         int datasetCount = 0;
-        for (int i = 0; i < datasourceCount; i++) {
-            datasetCount += workspace.getDatasources().get(i).getDatasets().getCount();
+        for (Datasource datasource : datasources) {
+            datasetCount += datasource.getDatasets().getCount();
         }
 
         String recordCount = "未选择矢量数据集";
@@ -817,9 +818,7 @@ public class HwkMainFrame extends JFrame {
 
     private List<DatasetItem> vectorDatasetItems() {
         List<DatasetItem> items = new ArrayList<>();
-        Datasources datasources = workspace.getDatasources();
-        for (int i = 0; i < datasources.getCount(); i++) {
-            Datasource datasource = datasources.get(i);
+        for (Datasource datasource : currentDatasources()) {
             Datasets datasets = datasource.getDatasets();
             for (int j = 0; j < datasets.getCount(); j++) {
                 Dataset dataset = datasets.get(j);
@@ -852,9 +851,7 @@ public class HwkMainFrame extends JFrame {
 
     private void refreshTree() {
         treeRoot.removeAllChildren();
-        Datasources datasources = workspace.getDatasources();
-        for (int i = 0; i < datasources.getCount(); i++) {
-            Datasource datasource = datasources.get(i);
+        for (Datasource datasource : currentDatasources()) {
             DefaultMutableTreeNode datasourceNode = new DefaultMutableTreeNode(new TreeItem(datasource));
             Datasets datasets = datasource.getDatasets();
             for (int j = 0; j < datasets.getCount(); j++) {
@@ -865,6 +862,110 @@ public class HwkMainFrame extends JFrame {
         treeModel.reload();
         for (int i = 0; i < dataTree.getRowCount(); i++) {
             dataTree.expandRow(i);
+        }
+    }
+
+    private List<Datasource> currentDatasources() {
+        List<Datasource> result = new ArrayList<>();
+        Datasources workspaceDatasources = workspace.getDatasources();
+        for (int i = 0; i < workspaceDatasources.getCount(); i++) {
+            addDatasource(result, workspaceDatasources.get(i));
+        }
+
+        Layers layers = mapControl.getMap().getLayers();
+        for (int i = 0; i < layers.getCount(); i++) {
+            Dataset dataset = layers.get(i).getDataset();
+            if (dataset != null) {
+                addDatasource(result, dataset.getDatasource());
+            }
+        }
+        return result;
+    }
+
+    private void addDatasource(List<Datasource> datasources, Datasource datasource) {
+        if (datasource == null) {
+            return;
+        }
+
+        String alias = datasourceAlias(datasource);
+        for (Datasource existing : datasources) {
+            if (existing == datasource) {
+                return;
+            }
+            if (sameAlias(alias, datasourceAlias(existing))) {
+                return;
+            }
+        }
+        datasources.add(datasource);
+    }
+
+    private boolean containsDatasourceAlias(String alias) {
+        for (Datasource datasource : currentDatasources()) {
+            if (sameAlias(alias, datasourceAlias(datasource))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isDatasourceAlreadyLoaded(String path) {
+        String wanted = normalizeDatasourcePath(path);
+        String wantedAlias = datasourceBaseAlias(new File(path));
+        for (Datasource datasource : currentDatasources()) {
+            if (sameAlias(wantedAlias, datasourceAlias(datasource))) {
+                return true;
+            }
+
+            String server = datasourceServer(datasource);
+            if (server != null && wanted.equals(normalizeDatasourcePath(server))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean sameAlias(String left, String right) {
+        return left != null && right != null && left.equalsIgnoreCase(right);
+    }
+
+    private String datasourceBaseAlias(File file) {
+        String name = file.getName();
+        int dot = name.lastIndexOf('.');
+        String base = dot > 0 ? name.substring(0, dot) : name;
+        base = base.replace(' ', '_').replace('-', '_');
+        return base.trim().isEmpty() ? "datasource" : base;
+    }
+
+    private String datasourceAlias(Datasource datasource) {
+        try {
+            return datasource.getAlias();
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    private String datasourceServer(Datasource datasource) {
+        try {
+            DatasourceConnectionInfo info = datasource.getConnectionInfo();
+            return info == null ? null : info.getServer();
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    private String normalizeDatasourcePath(String path) {
+        File file = new File(path);
+        if (!file.isAbsolute() && currentWorkspacePath != null) {
+            File parent = new File(currentWorkspacePath).getParentFile();
+            if (parent != null) {
+                file = new File(parent, path);
+            }
+        }
+
+        try {
+            return file.getCanonicalPath().toLowerCase(Locale.ROOT);
+        } catch (Exception ex) {
+            return file.getAbsolutePath().toLowerCase(Locale.ROOT);
         }
     }
 
