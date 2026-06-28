@@ -1,4 +1,3 @@
-import com.supermap.data.Workspace;
 import ui.HwkMainFrame;
 
 import javax.swing.*;

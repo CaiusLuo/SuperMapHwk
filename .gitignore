@@ -42,8 +42,6 @@ build/
 *.lic*
 *.lic12
 *.v2c
-demo-data/*
-!demo-data/README.md
 
 # local SDK / generated
 *.dll
